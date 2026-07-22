@@ -72,22 +72,61 @@ admin.get('/conversations', async (c) => {
   return c.json(Array.from(sessionMap.values()));
 });
 
-// GET /api/admin/vector-count — live Vectorize vector count
-admin.get('/vector-count', async (c) => {
-  const row = await c.env.DB.prepare(
-    "SELECT COUNT(*) as count FROM document_chunks WHERE chunk_type = 'small' AND vectorize_id IS NOT NULL"
-  ).first<{ count: number }>();
+// GET /api/admin/query-logs — detailed pipeline execution logs for every query
+admin.get('/query-logs', async (c) => {
+  const result = await c.env.DB.prepare(
+    `SELECT ch.id, ch.user_id, ch.session_id, ch.original_query, ch.rewritten_query,
+            ch.response_text, ch.sources, ch.intent, ch.total_time_ms, ch.embedding_time_ms,
+            ch.retrieval_time_ms, ch.reranking_time_ms, ch.llm_time_ms, ch.created_at, u.email
+     FROM chat_histories ch
+     LEFT JOIN users u ON u.id = ch.user_id
+     ORDER BY ch.created_at DESC
+     LIMIT 100`
+  ).all<{
+    id: string;
+    user_id: string;
+    session_id: string;
+    original_query: string;
+    rewritten_query: string | null;
+    response_text: string | null;
+    sources: string | null;
+    intent: string | null;
+    total_time_ms: number;
+    embedding_time_ms: number;
+    retrieval_time_ms: number;
+    reranking_time_ms: number;
+    llm_time_ms: number;
+    created_at: string;
+    email: string | null;
+  }>();
 
-  const count = row?.count ?? 0;
-  const limit = 30_000;
-  const percentUsed = ((count / limit) * 100).toFixed(1);
+  const logs = (result.results ?? []).map((row) => {
+    const email = row.email ?? 'User';
+    const username = email.includes('@') ? email.split('@')[0] : email;
+    let parsedSources = [];
+    try {
+      if (row.sources) parsedSources = JSON.parse(row.sources);
+    } catch {}
 
-  return c.json({
-    vectorCount: count,
-    limit,
-    percentUsed: parseFloat(percentUsed),
-    warning: count > 25_000 ? 'Approaching free tier limit of 30,000 vectors' : null,
+    return {
+      id: row.id,
+      sessionId: row.session_id,
+      user: { username, email },
+      originalQuery: row.original_query,
+      rewrittenQuery: row.rewritten_query || row.original_query,
+      responseText: row.response_text || '',
+      sources: parsedSources,
+      intent: row.intent || 'DocumentQuery',
+      totalTimeMs: row.total_time_ms || 0,
+      embeddingTimeMs: row.embedding_time_ms || 0,
+      retrievalTimeMs: row.retrieval_time_ms || 0,
+      rerankingTimeMs: row.reranking_time_ms || 0,
+      llmTimeMs: row.llm_time_ms || 0,
+      createdAt: row.created_at,
+    };
   });
+
+  return c.json(logs);
 });
 
 export default admin;

@@ -14,11 +14,16 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // Audit Log Tab States
-  const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'audit'
+  // Audit Log & Diagnostics Tab States
+  const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'audit' | 'diagnostics'
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [fetchingConversations, setFetchingConversations] = useState(false);
+
+  // Diagnostics Tab States
+  const [queryLogs, setQueryLogs] = useState([]);
+  const [selectedQueryLog, setSelectedQueryLog] = useState(null);
+  const [fetchingLogs, setFetchingLogs] = useState(false);
 
   const fetchAnalytics = async () => {
     try {
@@ -44,6 +49,18 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchQueryLogs = async () => {
+    setFetchingLogs(true);
+    try {
+      const data = await apiFetch('/admin/query-logs');
+      setQueryLogs(data);
+    } catch (err) {
+      console.error('Failed to load query execution logs:', err.message);
+    } finally {
+      setFetchingLogs(false);
+    }
+  };
+
   useEffect(() => {
     fetchAnalytics();
     // Refresh stats every 60 seconds
@@ -54,6 +71,8 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeTab === 'audit') {
       fetchConversations();
+    } else if (activeTab === 'diagnostics') {
+      fetchQueryLogs();
     }
   }, [activeTab]);
 
@@ -84,7 +103,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Tab Selectors */}
-      <div style={{ display: 'flex', gap: '16px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px' }}>
+      <div style={{ display: 'flex', gap: '16px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px', flexWrap: 'wrap' }}>
         <button
           onClick={() => setActiveTab('analytics')}
           className="btn btn-secondary"
@@ -111,6 +130,21 @@ export default function AdminDashboard() {
           }}
         >
           <MessageSquare size={16} /> User Chat Audit Log
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('diagnostics');
+            setSelectedQueryLog(null);
+          }}
+          className="btn btn-secondary"
+          style={{
+            backgroundColor: activeTab === 'diagnostics' ? 'var(--primary-glow)' : 'transparent',
+            borderColor: activeTab === 'diagnostics' ? 'rgba(37, 99, 235, 0.15)' : 'transparent',
+            color: activeTab === 'diagnostics' ? 'var(--primary)' : 'var(--text-muted)',
+            fontWeight: 600
+          }}
+        >
+          <Cpu size={16} /> Pipeline Execution Logs
         </button>
       </div>
 
@@ -330,7 +364,7 @@ export default function AdminDashboard() {
             </div>
           </div>
         </>
-      ) : (
+      ) : activeTab === 'audit' ? (
         /* User Chat Sessions Audit Log Tab */
         <div style={{ width: '100%' }}>
           {!selectedConversation ? (
@@ -494,6 +528,222 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Pipeline Execution Logs Tab */
+        <div style={{ width: '100%' }}>
+          <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Cpu size={18} color="var(--primary)" /> Query Execution & Pipeline Latency Log
+              </h4>
+              <button onClick={fetchQueryLogs} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
+                Refresh Logs
+              </button>
+            </div>
+
+            {fetchingLogs ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
+                <div className="glow-spinner" />
+              </div>
+            ) : queryLogs.length === 0 ? (
+              <p style={{ textAlign: 'center', color: 'var(--text-dark)', padding: '40px' }}>
+                No pipeline execution logs recorded yet.
+              </p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '12px 8px' }}>User</th>
+                      <th style={{ padding: '12px 8px' }}>Original Query</th>
+                      <th style={{ padding: '12px 8px' }}>Intent</th>
+                      <th style={{ padding: '12px 8px' }}>Total Latency</th>
+                      <th style={{ padding: '12px 8px' }}>Timestamp</th>
+                      <th style={{ padding: '12px 8px', textAlign: 'right' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {queryLogs.map((log) => {
+                      const totalMs = log.totalTimeMs || 0;
+                      const badgeColor = totalMs < 300 ? 'var(--success)' : totalMs < 1000 ? 'var(--primary)' : 'var(--warning)';
+                      const badgeBg = totalMs < 300 ? 'rgba(22, 163, 74, 0.1)' : totalMs < 1000 ? 'rgba(37, 99, 235, 0.1)' : 'rgba(202, 138, 4, 0.1)';
+
+                      return (
+                        <tr key={log.id} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.03)' }}>
+                          <td style={{ padding: '12px 8px', fontWeight: 500 }}>
+                            <span style={{ display: 'block' }}>{log.user?.username || 'User'}</span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{log.user?.email}</span>
+                          </td>
+                          <td style={{ padding: '12px 8px', maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {log.originalQuery}
+                          </td>
+                          <td style={{ padding: '12px 8px' }}>
+                            <span style={{
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              backgroundColor: 'rgba(8, 145, 178, 0.1)',
+                              color: 'var(--secondary)',
+                              fontSize: '0.75rem',
+                              fontWeight: 600
+                            }}>
+                              {log.intent}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 8px' }}>
+                            <span style={{
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              backgroundColor: badgeBg,
+                              color: badgeColor,
+                              fontSize: '0.8rem',
+                              fontWeight: 600
+                            }}>
+                              {totalMs} ms
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                            {new Date(log.createdAt).toLocaleString()}
+                          </td>
+                          <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                            <button
+                              onClick={() => setSelectedQueryLog(log)}
+                              className="btn btn-secondary"
+                              style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                            >
+                              Inspect Pipeline
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Inspect Pipeline Modal */}
+          {selectedQueryLog && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.6)',
+              backdropFilter: 'blur(4px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+              padding: '24px'
+            }}>
+              <div className="glass-card" style={{
+                width: '100%',
+                maxWidth: '720px',
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '24px',
+                backgroundColor: '#ffffff',
+                border: '1px solid var(--border-glass)',
+                boxShadow: 'var(--shadow-neon)'
+              }}>
+                {/* Modal Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-glass)', paddingBottom: '16px' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.2rem', margin: 0 }}>Pipeline Execution Diagnostics</h3>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Query ID: {selectedQueryLog.id}</span>
+                  </div>
+                  <button onClick={() => setSelectedQueryLog(null)} className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.85rem' }}>
+                    ✕ Close
+                  </button>
+                </div>
+
+                {/* Latency Visualizer Bar */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'rgba(15, 23, 42, 0.02)', padding: '16px', borderRadius: '8px' }}>
+                  <h4 style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Clock size={16} color="var(--primary)" /> End-to-End Latency Breakdown ({selectedQueryLog.totalTimeMs}ms)
+                  </h4>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {[
+                      { label: 'Embedding Generation', value: selectedQueryLog.embeddingTimeMs, color: 'var(--primary)' },
+                      { label: 'Parallel Candidate Retrieval (Dense + Sparse)', value: selectedQueryLog.retrievalTimeMs, color: 'var(--secondary)' },
+                      { label: 'Two-Stage Re-ranking', value: selectedQueryLog.rerankingTimeMs, color: 'var(--warning)' },
+                      { label: 'LLM Response Streaming', value: selectedQueryLog.llmTimeMs, color: 'var(--success)' },
+                    ].map((stg, i) => {
+                      const pct = selectedQueryLog.totalTimeMs > 0 ? (stg.value / selectedQueryLog.totalTimeMs) * 100 : 0;
+                      return (
+                        <div key={i}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '2px' }}>
+                            <span style={{ color: 'var(--text-muted)' }}>{stg.label}</span>
+                            <span style={{ fontWeight: 600 }}>{stg.value} ms ({pct.toFixed(0)}%)</span>
+                          </div>
+                          <div style={{ width: '100%', height: '6px', borderRadius: '3px', backgroundColor: 'rgba(15, 23, 42, 0.05)', overflow: 'hidden' }}>
+                            <div style={{ width: `${pct}%`, height: '100%', backgroundColor: stg.color }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Query Transformation Comparison */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <h4 style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <FileText size={16} color="var(--secondary)" /> Query Pre-Processing & Intent
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div style={{ padding: '12px', borderRadius: '6px', background: 'rgba(37, 99, 235, 0.05)', border: '1px solid rgba(37, 99, 235, 0.1)' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Original User Query:</span>
+                      <strong style={{ fontSize: '0.875rem' }}>{selectedQueryLog.originalQuery}</strong>
+                    </div>
+                    <div style={{ padding: '12px', borderRadius: '6px', background: 'rgba(8, 145, 178, 0.05)', border: '1px solid rgba(8, 145, 178, 0.1)' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Rewritten Search Query:</span>
+                      <strong style={{ fontSize: '0.875rem' }}>{selectedQueryLog.rewrittenQuery}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cited Sources & Chunks */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <h4 style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Layers size={16} color="var(--success)" /> Sources & Context Chunks Cited ({selectedQueryLog.sources?.length || 0})
+                  </h4>
+                  {selectedQueryLog.sources?.length === 0 ? (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No document chunks cited (Fallback / General Knowledge mode used).</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '160px', overflowY: 'auto' }}>
+                      {selectedQueryLog.sources.map((src, idx) => (
+                        <div key={idx} style={{ padding: '8px 12px', borderRadius: '6px', background: 'rgba(15, 23, 42, 0.02)', border: '1px solid var(--border-glass)', fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <strong style={{ color: 'var(--primary)' }}>{src.filename || 'Document Chunk'}</strong>
+                            <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>Chunk ID: {src.chunkId}</span>
+                          </div>
+                          <span style={{ fontWeight: 600, color: 'var(--secondary)', fontSize: '0.75rem', padding: '2px 6px', background: 'rgba(8, 145, 178, 0.1)', borderRadius: '4px' }}>
+                            Score: {(src.score * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Streamed Response Output */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <h4 style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <MessageSquare size={16} color="var(--warning)" /> LLM Streamed Response
+                  </h4>
+                  <div style={{ padding: '16px', borderRadius: '8px', background: 'rgba(15, 23, 42, 0.02)', border: '1px solid var(--border-glass)', fontSize: '0.875rem', maxHeight: '200px', overflowY: 'auto' }}>
+                    <ReactMarkdown>{selectedQueryLog.responseText}</ReactMarkdown>
+                  </div>
+                </div>
               </div>
             </div>
           )}
