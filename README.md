@@ -36,32 +36,40 @@
 - **Exact Section Code Boosting**: Detects legal statute codes (e.g. `NRS 624.090`, `NAC 624.170`) and executes a direct SQL `LIKE` lookup in D1, granting matched chunks an instant **`+100.0` score boost**.
 - **Reciprocal Rank Fusion (RRF)**: Merges dense, sparse, and exact matches into a single unified candidate pool.
 
-### 🌳 2. Adaptive 3-Tier Tree Chunker
+### 🧠 2. Hybrid Rolling Memory Engine (Short-Term + Long-Term Summary)
+- **Verbatim Short-Term Memory**: Keeps the most recent 6 exchanges (12 message turns) verbatim for immediate conversational fluency and pronoun resolution.
+- **Rolling Long-Term Summary**: When a session exceeds 6 exchanges, preceding messages are automatically summarized into a 2-3 sentence `Prior Session Context` block using `gpt-4o-mini` and persisted in D1 (`session_summaries`).
+- **Zero Added Latency**: Summarization runs asynchronously in background execution, injecting long-term user facts and background context into the GPT-4o prompt without slowing down user responses.
+
+### 🌳 3. Adaptive 3-Tier Tree Chunker
 - **AI Document Classification**: Uses `gpt-4o-mini` to classify documents into `FAQ`, `Table`, `Clause`, or `Standard`.
 - **Tree Hierarchy**: Constructs a 3-tier parent-child tree linked in D1:
   - **Large Parent Chunks (~1,000 tokens)**: Captures complete section/paragraph context.
   - **Medium Chunks (~400 tokens)**: Intermediate tree nodes.
   - **Small Child Chunks (~150 tokens)**: High-precision leaf vectors indexed into Cloudflare Vectorize.
 
-### 📜 3. Table of Contents Bypass & Snippet Prepending
+### 📜 4. Table of Contents Bypass & Snippet Prepending
 - Prepends exact matched child snippets directly to the parent context (`[Exact Match Snippet]: ... \n\n [Full Parent Context]: ...`), guaranteeing the LLM sees the exact definition text even if the parent chunk starts in a Table of Contents index.
 
-### 🎯 4. Two-Stage Re-Ranker with Section Code Override
+### 🎯 5. Two-Stage Re-Ranker with Section Code Override
 - Scores candidates using `gpt-4o-mini` as a cross-encoder judge.
 - Any passage containing the exact section code requested receives an instant **`1.0` answerability score override**, blending 60% retrieval confidence with 40% Cross-Encoder scoring.
 
-### 🛡️ 5. Semantic KV Cache & Entity Guard
+### 🛡️ 6. Semantic KV Cache & Entity Guard
 - Caches queries in Cloudflare KV.
 - `extractNumbersAndCodes()` compares section numbers between current and cached queries. If section numbers differ (e.g., `624.150` vs `624.170`), the cache is bypassed to eliminate false hits.
 
-### 🕸️ 6. Enterprise Web Crawler
-- **Crawl Modes**: Single Page, Domain Deep Crawl (Breadth-First Search link traversal), and Sitemap.xml Auto-Discovery.
+### 🕸️ 7. Enterprise Web Crawler
+- **Crawl Modes**: Single Page, Domain Deep Crawl (Breadth-First Link Discovery), and Sitemap.xml Auto-Discovery.
 - **Politeness Rate-Limiting**: 200ms delay between page fetches to avoid IP blocks.
 - **Content Hash Checksum**: SHA-256 deduplication skips re-indexing unchanged web content.
 
-### 📊 7. Admin Observability & User Audit Log
-- **Metrics Dashboard**: Live document counts, parsed chunk stats, Vectorize vector usage, and average latency breakdown bars.
-- **User Chat Audit Log**: Aggregates user sessions with `LEFT JOIN` on `users` table, providing full transcript inspection for every user conversation.
+### 📊 8. User-Centric Hierarchical Audit Explorer & Diagnostics
+- **3-Level Drill-Down Structure**: 
+  - `Level 1`: Registered Users Directory (User email, total sessions, total query count, last active date).
+  - `Level 2`: User Sessions Explorer (All chat sessions created by the selected user).
+  - `Level 3`: Session Transcript & Pipeline Diagnostics Inspector.
+- **Interactive Inspect Pipeline Modal**: Inspects stage-by-stage latency breakdowns (Embedding, Retrieval, Re-ranking, LLM), query transformations (Original vs Rewritten Query), and cited source chunks with relevance scores.
 
 ---
 
@@ -93,9 +101,9 @@ flowchart TD
 
     I --> J["6. Batched Parent Chunk Expansion\n(D1 SQL IN (...) Queries)"]
     J --> K["7. Two-Stage Re-Ranker\n(gpt-4o-mini + 1.0 Code Override)"]
-    K --> L["8. Context Assembly & Snippet Prepending"]
+    K --> L["8. Hybrid Rolling Memory + Context Assembly\nInjects [Prior Session Summary] +\n[Exact Match Snippet] + [Parent Context]"]
     L --> M["9. Stream LLM Response\n(OpenAI gpt-4o SSE Stream)"]
-    M --> N["💻 Render Answer in UI & Log History to D1"]
+    M --> N["💻 Render Answer in UI & Log Execution History to D1"]
 ```
 
 ---
@@ -129,7 +137,7 @@ knowledgehubai-cloudflare/
     ├── src/
     │   ├── index.ts              # Worker entry point & Hono Router
     │   ├── routes/               # API Routes (/auth, /query, /documents, /crawl, /admin)
-    │   ├── services/             # Core Logic (Pipeline, Ingestion, Crawl, Auth, Analytics)
+    │   ├── services/             # Core Logic (Pipeline, Ingestion, Crawl, Summary, Auth, Analytics)
     │   ├── retrievers/           # Multi-Retriever (Dense Vectorize + Sparse D1 FTS5 + RRF)
     │   ├── rankers/              # Two-Stage Cross-Encoder Re-ranker
     │   ├── chunkers/             # Adaptive Tree Chunker (3-tier hierarchy)
@@ -163,13 +171,16 @@ cd ../frontend
 npm install
 ```
 
-### 2. Configure Cloudflare Secrets
+### 2. Configure Cloudflare Secrets & Database
 
 ```bash
 cd ../worker
 
 # Set your OpenAI API Key in Cloudflare Worker secrets
 npx wrangler secret put OPENAI_API_KEY
+
+# Execute D1 Schema Migration
+npx wrangler d1 execute knowledgehubai --remote --file=./schema.sql
 ```
 
 ### 3. Run Locally
