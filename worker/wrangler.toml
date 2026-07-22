@@ -1,0 +1,47 @@
+name = "knowledgehubai-worker"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# ─── D1 Database ────────────────────────────────────────────────────────────
+[[d1_databases]]
+binding = "DB"
+database_name = "knowledgehubai"
+database_id = "326b2497-ffd3-4916-aa2e-9e1c497a6816"
+
+# ─── Vectorize Indexes ───────────────────────────────────────────────────────
+[[vectorize]]
+binding = "VECTORIZE_DOCS"
+index_name = "document-chunks"
+
+[[vectorize]]
+binding = "VECTORIZE_CACHE"
+index_name = "semantic-cache"
+
+# ─── R2 Bucket ───────────────────────────────────────────────────────────────
+# TODO: Uncomment after enabling R2 in the Cloudflare Dashboard:
+#   dash.cloudflare.com → R2 Object Storage → Get Started
+# Then run: wrangler r2 bucket create knowledgehubai-files
+# [[r2_buckets]]
+# binding = "R2"
+# bucket_name = "knowledgehubai-files"
+
+# ─── Workers KV ──────────────────────────────────────────────────────────────
+[[kv_namespaces]]
+binding = "KV"
+id = "771711bfce1d45ba931e8cde644712e8"
+
+# ─── Cron Triggers ───────────────────────────────────────────────────────────
+[triggers]
+crons = ["*/10 * * * *"]
+
+# ─── Environment Variables (non-secret) ──────────────────────────────────────
+[vars]
+NODE_ENV = "production"
+MAX_FILE_SIZE_BYTES = "5242880"
+VECTOR_DIMENSION = "1536"
+JWT_EXPIRES_IN = "7d"
+
+# Secrets (set via `wrangler secret put`):
+#   OPENAI_API_KEY
+#   JWT_SECRET

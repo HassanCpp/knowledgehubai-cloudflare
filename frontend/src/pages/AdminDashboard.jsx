@@ -1,0 +1,504 @@
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import ReactMarkdown from 'react-markdown';
+import { 
+  BarChart3, Clock, HelpCircle, AlertTriangle, Cpu, Layers, HardDrive, 
+  MessageSquare, User, ArrowLeft, FileText, Calendar 
+} from 'lucide-react';
+
+export default function AdminDashboard() {
+  const { apiFetch } = useAuth();
+  
+  // Dashboard Analytics States
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  
+  // Audit Log Tab States
+  const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'audit'
+  const [conversations, setConversations] = useState([]);
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [fetchingConversations, setFetchingConversations] = useState(false);
+
+  const fetchAnalytics = async () => {
+    try {
+      const data = await apiFetch('/admin/analytics');
+      setAnalytics(data);
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Failed to fetch analytics data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchConversations = async () => {
+    setFetchingConversations(true);
+    try {
+      const data = await apiFetch('/admin/conversations');
+      setConversations(data);
+    } catch (err) {
+      console.error('Failed to load user conversations:', err.message);
+    } finally {
+      setFetchingConversations(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAnalytics();
+    // Refresh stats every 60 seconds
+    const interval = setInterval(fetchAnalytics, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'audit') {
+      fetchConversations();
+    }
+  }, [activeTab]);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+        <div className="glow-spinner" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '40px' }}>
+        <div className="alert alert-error">{error}</div>
+      </div>
+    );
+  }
+
+  const { overview, latencies, documentsByType, duplicateDocumentsCount, topQuestions, failedQueries } = analytics;
+
+  return (
+    <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '32px', width: '100%', minWidth: 0 }}>
+      {/* Header */}
+      <div>
+        <h2 style={{ fontSize: '2rem' }} className="gradient-text">Admin Observability Dashboard</h2>
+        <p style={{ color: 'var(--text-muted)' }}>Real-time statistics, vector ingestion diagnostics, and user session chat auditing</p>
+      </div>
+
+      {/* Tab Selectors */}
+      <div style={{ display: 'flex', gap: '16px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px' }}>
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className="btn btn-secondary"
+          style={{
+            backgroundColor: activeTab === 'analytics' ? 'var(--primary-glow)' : 'transparent',
+            borderColor: activeTab === 'analytics' ? 'rgba(37, 99, 235, 0.15)' : 'transparent',
+            color: activeTab === 'analytics' ? 'var(--primary)' : 'var(--text-muted)',
+            fontWeight: 600
+          }}
+        >
+          <BarChart3 size={16} /> Analytics Dashboard
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('audit');
+            setSelectedConversation(null);
+          }}
+          className="btn btn-secondary"
+          style={{
+            backgroundColor: activeTab === 'audit' ? 'var(--primary-glow)' : 'transparent',
+            borderColor: activeTab === 'audit' ? 'rgba(37, 99, 235, 0.15)' : 'transparent',
+            color: activeTab === 'audit' ? 'var(--primary)' : 'var(--text-muted)',
+            fontWeight: 600
+          }}
+        >
+          <MessageSquare size={16} /> User Chat Audit Log
+        </button>
+      </div>
+
+      {activeTab === 'analytics' ? (
+        <>
+          {/* Overview Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+            <div className="glass-card" style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+              <div style={{ padding: '12px', borderRadius: '12px', background: 'rgba(37, 99, 235, 0.1)', color: 'var(--primary)' }}>
+                <HardDrive size={24} />
+              </div>
+              <div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Knowledge Documents</span>
+                <h3 style={{ fontSize: '1.8rem', marginTop: '4px' }}>{overview.documents}</h3>
+              </div>
+            </div>
+
+            <div className="glass-card" style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+              <div style={{ padding: '12px', borderRadius: '12px', background: 'rgba(8, 145, 178, 0.1)', color: 'var(--secondary)' }}>
+                <Layers size={24} />
+              </div>
+              <div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Parsed Chunks</span>
+                <h3 style={{ fontSize: '1.8rem', marginTop: '4px' }}>{overview.chunks}</h3>
+              </div>
+            </div>
+
+            <div className="glass-card" style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+              <div style={{ padding: '12px', borderRadius: '12px', background: 'rgba(22, 163, 74, 0.1)', color: 'var(--success)' }}>
+                <Cpu size={24} />
+              </div>
+              <div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Vector Embeddings</span>
+                <h3 style={{ fontSize: '1.8rem', marginTop: '4px' }}>{overview.embeddings}</h3>
+              </div>
+            </div>
+
+            <div className="glass-card" style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+              <div style={{ padding: '12px', borderRadius: '12px', background: 'rgba(202, 138, 4, 0.1)', color: 'var(--warning)' }}>
+                <Clock size={24} />
+              </div>
+              <div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Avg Chunk Size (chars)</span>
+                <h3 style={{ fontSize: '1.8rem', marginTop: '4px' }}>{overview.averageChunkSize}</h3>
+              </div>
+            </div>
+          </div>
+
+          {/* Latency & Cache Hit Sections */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+            {/* Latency Breakdown Bar */}
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Clock size={18} color="var(--primary)" /> Average Query Latency Breakdown ({latencies.total}ms)
+              </h4>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {[
+                  { label: 'Embedding Generation', value: latencies.embedding, color: 'var(--primary)' },
+                  { label: 'Parallel Candidate Retrieval', value: latencies.retrieval, color: 'var(--secondary)' },
+                  { label: 'Two-Stage Re-ranking', value: latencies.reranking, color: 'var(--warning)' },
+                  { label: 'LLM Stream Answer Formulation', value: latencies.llm, color: 'var(--success)' },
+                ].map((lat, idx) => {
+                  const percentage = latencies.total > 0 ? (lat.value / latencies.total) * 100 : 0;
+                  return (
+                    <div key={idx}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '4px' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>{lat.label}</span>
+                        <span style={{ fontWeight: 600 }}>{lat.value}ms ({percentage.toFixed(0)}%)</span>
+                      </div>
+                      <div style={{ width: '100%', height: '8px', borderRadius: '4px', backgroundColor: 'rgba(15, 23, 42, 0.05)', overflow: 'hidden' }}>
+                        <div style={{ width: `${percentage}%`, height: '100%', backgroundColor: lat.color }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Cache Hit and Index Duplications */}
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Cpu size={18} color="var(--secondary)" /> Retrieval Quality & Cache Health
+              </h4>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', flex: 1, alignItems: 'center' }}>
+                <div style={{ textAlign: 'center', borderRight: '1px solid var(--border-glass)' }}>
+                  <div style={{ fontSize: '3rem', fontWeight: 700, color: 'var(--secondary)', lineHeight: 1 }}>
+                    {(overview.cacheHitRate * 100).toFixed(0)}%
+                  </div>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginTop: '8px' }}>
+                    Cache Hit Rate
+                  </span>
+                </div>
+
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '3rem', fontWeight: 700, color: 'var(--success)', lineHeight: 1 }}>
+                    {(overview.retrievalAccuracy * 100).toFixed(0)}%
+                  </div>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginTop: '8px' }}>
+                    Retrieval Accuracy
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '12px', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Duplicate Documents Intercepted:</span>
+                <span style={{ fontWeight: 600, color: 'var(--error)' }}>{duplicateDocumentsCount} files</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Documents by type Chart & Top Questions */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
+            {/* Document Classification distribution */}
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <BarChart3 size={18} color="var(--success)" /> Ingested Documents by Classification
+              </h4>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '200px' }}>
+                {documentsByType.length === 0 ? (
+                  <p style={{ color: 'var(--text-dark)', fontSize: '0.9rem', textAlign: 'center' }}>No documents parsed yet</p>
+                ) : (
+                  documentsByType.map((item, idx) => {
+                    const maxCount = Math.max(...documentsByType.map((d) => d.count), 1);
+                    const percent = (item.count / maxCount) * 100;
+                    return (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ width: '120px', fontSize: '0.85rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                          {item.type}
+                        </span>
+                        <div style={{ flex: 1, height: '14px', borderRadius: '7px', backgroundColor: 'rgba(15, 23, 42, 0.03)', overflow: 'hidden', display: 'flex' }}>
+                          <div style={{ width: `${percent}%`, height: '100%', background: 'linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%)' }} />
+                        </div>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, width: '30px', textAlign: 'right' }}>
+                          {item.count}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Top searched questions list */}
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <HelpCircle size={18} color="var(--warning)" /> Top Knowledge Queries
+              </h4>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', maxHeight: '200px' }}>
+                {topQuestions.length === 0 ? (
+                  <p style={{ color: 'var(--text-dark)', fontSize: '0.9rem', textAlign: 'center' }}>No query histories logged</p>
+                ) : (
+                  topQuestions.map((q, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(15, 23, 42, 0.02)', borderRadius: '4px', fontSize: '0.85rem' }}>
+                      <span style={{ whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', flex: 1, marginRight: '16px' }}>
+                        {idx + 1}. {q.query}
+                      </span>
+                      <span style={{ fontWeight: 600, color: 'var(--secondary)' }}>{q.count} hits</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Failed/Fallback Queries Table */}
+          <div className="glass-card">
+            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <AlertTriangle size={18} color="var(--error)" /> Fallback & Insufficient Similarity Logs
+            </h4>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)' }}>
+                    <th style={{ padding: '12px 8px' }}>Query Text</th>
+                    <th style={{ padding: '12px 8px' }}>Reason</th>
+                    <th style={{ padding: '12px 8px' }}>Best Chunk Similarity</th>
+                    <th style={{ padding: '12px 8px' }}>Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {failedQueries.length === 0 ? (
+                    <tr>
+                      <td colSpan="4" style={{ textAlign: 'center', padding: '20px', color: 'var(--text-dark)' }}>
+                        No failed retrievals or fallback routes logged
+                      </td>
+                    </tr>
+                  ) : (
+                    failedQueries.map((log) => (
+                      <tr key={log._id} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.02)' }}>
+                        <td style={{ padding: '12px 8px', fontWeight: 500 }}>{log.queryText}</td>
+                        <td style={{ padding: '12px 8px' }}>
+                          <span style={{
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                            color: 'var(--error)',
+                            fontSize: '0.75rem',
+                          }}>
+                            {log.reason}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 8px', color: 'var(--warning)', fontWeight: 600 }}>
+                          {log.similarityScore ? (log.similarityScore * 100).toFixed(1) + '%' : 'N/A'}
+                        </td>
+                        <td style={{ padding: '12px 8px', color: 'var(--text-dark)' }}>
+                          {new Date(log.timestamp).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* User Chat Sessions Audit Log Tab */
+        <div style={{ width: '100%' }}>
+          {!selectedConversation ? (
+            /* Sessions Directory List */
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <MessageSquare size={18} color="var(--primary)" /> Active Conversations Registry
+              </h4>
+
+              {fetchingConversations ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
+                  <div className="glow-spinner" />
+                </div>
+              ) : conversations.length === 0 ? (
+                <p style={{ textAlign: 'center', color: 'var(--text-dark)', padding: '40px' }}>
+                  No active chat sessions registered in the database.
+                </p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)' }}>
+                        <th style={{ padding: '12px 8px' }}>User Details</th>
+                        <th style={{ padding: '12px 8px' }}>Session ID</th>
+                        <th style={{ padding: '12px 8px' }}>Exchanges</th>
+                        <th style={{ padding: '12px 8px' }}>Last Updated</th>
+                        <th style={{ padding: '12px 8px', textAlign: 'right' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {conversations.map((sess, idx) => {
+                        const username = sess.user?.username || sess.user?.email || 'User';
+                        const email = sess.user?.email || 'Registered User';
+                        const msgCount = sess.messages?.length ?? 0;
+                        const dateStr = sess.updatedAt ? new Date(sess.updatedAt).toLocaleString() : 'Recent';
+
+                        return (
+                          <tr key={sess.sessionId || idx} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.03)' }}>
+                            <td style={{ padding: '12px 8px', fontWeight: 500 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <User size={14} color="var(--primary)" />
+                                <div>
+                                  <span style={{ display: 'block' }}>{username}</span>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>{email}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{ padding: '12px 8px', fontFamily: 'monospace', color: 'var(--text-muted)' }}>
+                              {sess.sessionId || 'N/A'}
+                            </td>
+                            <td style={{ padding: '12px 8px', fontWeight: 600, color: 'var(--secondary)' }}>
+                              {msgCount} queries
+                            </td>
+                            <td style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem' }}>
+                                <Calendar size={12} />
+                                {dateStr}
+                              </div>
+                            </td>
+                            <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                              <button
+                                onClick={() => setSelectedConversation(sess)}
+                                className="btn btn-secondary"
+                                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                              >
+                                Inspect Chat
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Selected Session Transcript Viewer */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+              {/* Back Button Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-glass)', paddingBottom: '16px' }}>
+                <button
+                  onClick={() => setSelectedConversation(null)}
+                  className="btn btn-secondary"
+                  style={{ gap: '6px', fontSize: '0.85rem' }}
+                >
+                  <ArrowLeft size={16} /> Back to Sessions
+                </button>
+                <div style={{ textAlign: 'right' }}>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Auditing Session:</span>
+                  <span style={{ display: 'block', fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: 600 }}>{selectedConversation.sessionId}</span>
+                </div>
+              </div>
+
+              {/* User Bio Card */}
+              <div className="glass-card" style={{ padding: '16px', display: 'flex', gap: '16px', alignItems: 'center', backgroundColor: 'var(--primary-glow)', borderColor: 'rgba(37, 99, 235, 0.1)' }}>
+                <div style={{ padding: '10px', borderRadius: '50%', backgroundColor: '#fff', color: 'var(--primary)', boxShadow: 'var(--shadow-neon)' }}>
+                  <User size={20} />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '0.95rem' }}>Conversation with {selectedConversation.user?.username || selectedConversation.user?.email || 'User'}</h4>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email: {selectedConversation.user?.email || 'User'} | Active: {selectedConversation.updatedAt ? new Date(selectedConversation.updatedAt).toLocaleString() : 'Recent'}</p>
+                </div>
+              </div>
+
+              {/* Audit Transcript Message Feed */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '12px 0' }}>
+                {selectedConversation.messages.map((msg) => (
+                  <div key={msg._id} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {/* User Query */}
+                    <div style={{ alignSelf: 'flex-end', maxWidth: '80%' }}>
+                      <div style={{
+                        backgroundColor: 'var(--primary)',
+                        padding: '12px 16px',
+                        borderRadius: '16px 16px 4px 16px',
+                        boxShadow: '0 4px 12px rgba(37, 99, 235, 0.12)',
+                        color: '#fff',
+                        fontSize: '0.92rem'
+                      }}>
+                        {msg.originalQuery}
+                      </div>
+                    </div>
+
+                    {/* AI Answer Card */}
+                    <div style={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                      <div className="glass-card" style={{
+                        padding: '16px 20px',
+                        borderRadius: '16px 16px 16px 4px',
+                        fontSize: '0.92rem'
+                      }}>
+                        <ReactMarkdown>{msg.responseText}</ReactMarkdown>
+                      </div>
+
+                      {/* RAG Diagnostics Footer */}
+                      <div style={{ 
+                        display: 'flex', 
+                        flexWrap: 'wrap', 
+                        gap: '12px', 
+                        padding: '8px 12px', 
+                        border: '1px solid var(--border-glass)', 
+                        borderRadius: 'var(--radius-sm)', 
+                        fontSize: '0.75rem',
+                        backgroundColor: 'rgba(15, 23, 42, 0.01)',
+                        color: 'var(--text-muted)'
+                      }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Clock size={12} /> Latency: <strong>{msg.logs?.totalTimeMs || 'N/A'}ms</strong>
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Cpu size={12} /> Tokens: <strong>{msg.logs?.promptTokens + msg.logs?.completionTokens || 'N/A'}</strong> (P:{msg.logs?.promptTokens} / C:{msg.logs?.completionTokens})
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <AlertTriangle size={12} /> Intent: <strong style={{ textTransform: 'uppercase' }}>{msg.logs?.intent || 'KNOWLEDGE'}</strong>
+                        </span>
+                        {msg.sources && msg.sources.length > 0 && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <FileText size={12} /> Sources Cited: <strong>{msg.sources.length} document(s)</strong>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,5 @@
+# Copy this file to .dev.vars for local wrangler dev
+# .dev.vars is gitignored — never commit real secrets
+
+OPENAI_API_KEY=sk-...
+JWT_SECRET=supersecretjwtkey_change_in_production_min32chars

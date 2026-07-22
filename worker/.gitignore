@@ -1,0 +1,16 @@
+# Node modules
+node_modules/
+
+# Cloudflare Wrangler build & dev vars
+.wrangler/
+.dev.vars
+.dev.vars.local
+!.dev.vars.example
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
