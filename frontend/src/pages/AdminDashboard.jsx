@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import ReactMarkdown from 'react-markdown';
 import { 
   BarChart3, Clock, HelpCircle, AlertTriangle, Cpu, Layers, HardDrive, 
-  MessageSquare, User, ArrowLeft, FileText, Calendar 
+  MessageSquare, User, ArrowLeft, FileText, Calendar, ChevronRight
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -14,16 +14,13 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // Audit Log & Diagnostics Tab States
-  const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'audit' | 'diagnostics'
-  const [conversations, setConversations] = useState([]);
-  const [selectedConversation, setSelectedConversation] = useState(null);
-  const [fetchingConversations, setFetchingConversations] = useState(false);
-
-  // Diagnostics Tab States
-  const [queryLogs, setQueryLogs] = useState([]);
-  const [selectedQueryLog, setSelectedQueryLog] = useState(null);
-  const [fetchingLogs, setFetchingLogs] = useState(false);
+  // Audit Explorer Tab States
+  const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'audit'
+  const [userAudits, setUserAudits] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedSession, setSelectedSession] = useState(null);
+  const [selectedInspectMsg, setSelectedInspectMsg] = useState(null);
+  const [fetchingAudits, setFetchingAudits] = useState(false);
 
   const fetchAnalytics = async () => {
     try {
@@ -38,32 +35,19 @@ export default function AdminDashboard() {
   };
 
   const fetchConversations = async () => {
-    setFetchingConversations(true);
+    setFetchingAudits(true);
     try {
       const data = await apiFetch('/admin/conversations');
-      setConversations(data);
+      setUserAudits(data);
     } catch (err) {
       console.error('Failed to load user conversations:', err.message);
     } finally {
-      setFetchingConversations(false);
-    }
-  };
-
-  const fetchQueryLogs = async () => {
-    setFetchingLogs(true);
-    try {
-      const data = await apiFetch('/admin/query-logs');
-      setQueryLogs(data);
-    } catch (err) {
-      console.error('Failed to load query execution logs:', err.message);
-    } finally {
-      setFetchingLogs(false);
+      setFetchingAudits(false);
     }
   };
 
   useEffect(() => {
     fetchAnalytics();
-    // Refresh stats every 60 seconds
     const interval = setInterval(fetchAnalytics, 60000);
     return () => clearInterval(interval);
   }, []);
@@ -71,8 +55,6 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeTab === 'audit') {
       fetchConversations();
-    } else if (activeTab === 'diagnostics') {
-      fetchQueryLogs();
     }
   }, [activeTab]);
 
@@ -102,10 +84,14 @@ export default function AdminDashboard() {
         <p style={{ color: 'var(--text-muted)' }}>Real-time statistics, vector ingestion diagnostics, and user session chat auditing</p>
       </div>
 
-      {/* Tab Selectors */}
-      <div style={{ display: 'flex', gap: '16px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px', flexWrap: 'wrap' }}>
+      {/* Primary Tab Selectors */}
+      <div style={{ display: 'flex', gap: '16px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px' }}>
         <button
-          onClick={() => setActiveTab('analytics')}
+          onClick={() => {
+            setActiveTab('analytics');
+            setSelectedUser(null);
+            setSelectedSession(null);
+          }}
           className="btn btn-secondary"
           style={{
             backgroundColor: activeTab === 'analytics' ? 'var(--primary-glow)' : 'transparent',
@@ -119,7 +105,8 @@ export default function AdminDashboard() {
         <button
           onClick={() => {
             setActiveTab('audit');
-            setSelectedConversation(null);
+            setSelectedUser(null);
+            setSelectedSession(null);
           }}
           className="btn btn-secondary"
           style={{
@@ -129,22 +116,7 @@ export default function AdminDashboard() {
             fontWeight: 600
           }}
         >
-          <MessageSquare size={16} /> User Chat Audit Log
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab('diagnostics');
-            setSelectedQueryLog(null);
-          }}
-          className="btn btn-secondary"
-          style={{
-            backgroundColor: activeTab === 'diagnostics' ? 'var(--primary-glow)' : 'transparent',
-            borderColor: activeTab === 'diagnostics' ? 'rgba(37, 99, 235, 0.15)' : 'transparent',
-            color: activeTab === 'diagnostics' ? 'var(--primary)' : 'var(--text-muted)',
-            fontWeight: 600
-          }}
-        >
-          <Cpu size={16} /> Pipeline Execution Logs
+          <User size={16} /> User & Session Audit Explorer
         </button>
       </div>
 
@@ -193,7 +165,7 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Latency & Cache Hit Sections */}
+          {/* Latency & Cache Health */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
             {/* Latency Breakdown Bar */}
             <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -259,7 +231,6 @@ export default function AdminDashboard() {
 
           {/* Documents by type Chart & Top Questions */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
-            {/* Document Classification distribution */}
             <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <BarChart3 size={18} color="var(--success)" /> Ingested Documents by Classification
@@ -290,7 +261,6 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Top searched questions list */}
             <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <HelpCircle size={18} color="var(--warning)" /> Top Knowledge Queries
@@ -364,23 +334,59 @@ export default function AdminDashboard() {
             </div>
           </div>
         </>
-      ) : activeTab === 'audit' ? (
-        /* User Chat Sessions Audit Log Tab */
+      ) : (
+        /* Hierarchical User & Session Audit Explorer */
         <div style={{ width: '100%' }}>
-          {!selectedConversation ? (
-            /* Sessions Directory List */
-            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <MessageSquare size={18} color="var(--primary)" /> Active Conversations Registry
-              </h4>
+          {/* Breadcrumb Navigation Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', fontSize: '0.9rem' }}>
+            <span
+              onClick={() => { setSelectedUser(null); setSelectedSession(null); }}
+              style={{ cursor: 'pointer', color: !selectedUser ? 'var(--primary)' : 'var(--text-muted)', fontWeight: !selectedUser ? 600 : 400 }}
+            >
+              Users Directory
+            </span>
 
-              {fetchingConversations ? (
+            {selectedUser && (
+              <>
+                <ChevronRight size={14} color="var(--text-muted)" />
+                <span
+                  onClick={() => setSelectedSession(null)}
+                  style={{ cursor: 'pointer', color: selectedUser && !selectedSession ? 'var(--primary)' : 'var(--text-muted)', fontWeight: selectedUser && !selectedSession ? 600 : 400 }}
+                >
+                  {selectedUser.user?.email || 'User'} ({selectedUser.totalSessions} Sessions)
+                </span>
+              </>
+            )}
+
+            {selectedSession && (
+              <>
+                <ChevronRight size={14} color="var(--text-muted)" />
+                <span style={{ color: 'var(--primary)', fontWeight: 600, fontFamily: 'monospace' }}>
+                  Session: {selectedSession.sessionId}
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* LEVEL 1: User Directory List */}
+          {!selectedUser ? (
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <User size={18} color="var(--primary)" /> Registered Users Directory ({userAudits.length})
+                </h4>
+                <button onClick={fetchConversations} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
+                  Refresh Users
+                </button>
+              </div>
+
+              {fetchingAudits ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
                   <div className="glow-spinner" />
                 </div>
-              ) : conversations.length === 0 ? (
+              ) : userAudits.length === 0 ? (
                 <p style={{ textAlign: 'center', color: 'var(--text-dark)', padding: '40px' }}>
-                  No active chat sessions registered in the database.
+                  No active users or sessions recorded in D1 database.
                 </p>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
@@ -388,66 +394,109 @@ export default function AdminDashboard() {
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)' }}>
                         <th style={{ padding: '12px 8px' }}>User Details</th>
-                        <th style={{ padding: '12px 8px' }}>Session ID</th>
-                        <th style={{ padding: '12px 8px' }}>Exchanges</th>
-                        <th style={{ padding: '12px 8px' }}>Last Updated</th>
+                        <th style={{ padding: '12px 8px' }}>Total Sessions</th>
+                        <th style={{ padding: '12px 8px' }}>Total Queries</th>
+                        <th style={{ padding: '12px 8px' }}>Last Active</th>
                         <th style={{ padding: '12px 8px', textAlign: 'right' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {conversations.map((sess, idx) => {
-                        const username = sess.user?.username || sess.user?.email || 'User';
-                        const email = sess.user?.email || 'Registered User';
-                        const msgCount = sess.messages?.length ?? 0;
-                        const dateStr = sess.updatedAt ? new Date(sess.updatedAt).toLocaleString() : 'Recent';
-
-                        return (
-                          <tr key={sess.sessionId || idx} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.03)' }}>
-                            <td style={{ padding: '12px 8px', fontWeight: 500 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <User size={14} color="var(--primary)" />
-                                <div>
-                                  <span style={{ display: 'block' }}>{username}</span>
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>{email}</span>
-                                </div>
+                      {userAudits.map((uRec) => (
+                        <tr key={uRec.userId} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.03)' }}>
+                          <td style={{ padding: '12px 8px', fontWeight: 500 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div style={{ padding: '8px', borderRadius: '50%', backgroundColor: 'rgba(37, 99, 235, 0.1)', color: 'var(--primary)' }}>
+                                <User size={16} />
                               </div>
-                            </td>
-                            <td style={{ padding: '12px 8px', fontFamily: 'monospace', color: 'var(--text-muted)' }}>
-                              {sess.sessionId || 'N/A'}
-                            </td>
-                            <td style={{ padding: '12px 8px', fontWeight: 600, color: 'var(--secondary)' }}>
-                              {msgCount} queries
-                            </td>
-                            <td style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem' }}>
-                                <Calendar size={12} />
-                                {dateStr}
+                              <div>
+                                <span style={{ display: 'block', fontWeight: 600 }}>{uRec.user?.username || 'User'}</span>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{uRec.user?.email}</span>
                               </div>
-                            </td>
-                            <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                              <button
-                                onClick={() => setSelectedConversation(sess)}
-                                className="btn btn-secondary"
-                                style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                              >
-                                Inspect Chat
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 8px', fontWeight: 600, color: 'var(--secondary)' }}>
+                            {uRec.totalSessions} session(s)
+                          </td>
+                          <td style={{ padding: '12px 8px', fontWeight: 600, color: 'var(--success)' }}>
+                            {uRec.totalQueries} query(s)
+                          </td>
+                          <td style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                            {new Date(uRec.lastActive).toLocaleString()}
+                          </td>
+                          <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                            <button
+                              onClick={() => setSelectedUser(uRec)}
+                              className="btn btn-secondary"
+                              style={{ padding: '6px 12px', fontSize: '0.8rem', gap: '4px' }}
+                            >
+                              Explore Sessions <ChevronRight size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
               )}
             </div>
+          ) : !selectedSession ? (
+            /* LEVEL 2: User Sessions List */
+            <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <MessageSquare size={18} color="var(--secondary)" /> Sessions for {selectedUser.user?.email}
+                  </h4>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Total Queries: {selectedUser.totalQueries}</span>
+                </div>
+                <button onClick={() => setSelectedUser(null)} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem', gap: '6px' }}>
+                  <ArrowLeft size={14} /> Back to Users
+                </button>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)' }}>
+                      <th style={{ padding: '12px 8px' }}>Session ID</th>
+                      <th style={{ padding: '12px 8px' }}>Query Count</th>
+                      <th style={{ padding: '12px 8px' }}>Last Updated</th>
+                      <th style={{ padding: '12px 8px', textAlign: 'right' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedUser.sessions.map((sess) => (
+                      <tr key={sess.sessionId} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.03)' }}>
+                        <td style={{ padding: '12px 8px', fontFamily: 'monospace', fontWeight: 600, color: 'var(--primary)' }}>
+                          {sess.sessionId}
+                        </td>
+                        <td style={{ padding: '12px 8px', fontWeight: 600, color: 'var(--secondary)' }}>
+                          {sess.messages?.length || 0} messages
+                        </td>
+                        <td style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                          {new Date(sess.updatedAt).toLocaleString()}
+                        </td>
+                        <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                          <button
+                            onClick={() => setSelectedSession(sess)}
+                            className="btn btn-secondary"
+                            style={{ padding: '6px 12px', fontSize: '0.8rem', gap: '4px' }}
+                          >
+                            Inspect Session Logs <ChevronRight size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           ) : (
-            /* Selected Session Transcript Viewer */
+            /* LEVEL 3: Session Transcript & Inline Pipeline Diagnostics */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-              {/* Back Button Header */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-glass)', paddingBottom: '16px' }}>
                 <button
-                  onClick={() => setSelectedConversation(null)}
+                  onClick={() => setSelectedSession(null)}
                   className="btn btn-secondary"
                   style={{ gap: '6px', fontSize: '0.85rem' }}
                 >
@@ -455,25 +504,14 @@ export default function AdminDashboard() {
                 </button>
                 <div style={{ textAlign: 'right' }}>
                   <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Auditing Session:</span>
-                  <span style={{ display: 'block', fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: 600 }}>{selectedConversation.sessionId}</span>
+                  <span style={{ display: 'block', fontFamily: 'monospace', fontSize: '0.9rem', fontWeight: 600 }}>{selectedSession.sessionId}</span>
                 </div>
               </div>
 
-              {/* User Bio Card */}
-              <div className="glass-card" style={{ padding: '16px', display: 'flex', gap: '16px', alignItems: 'center', backgroundColor: 'var(--primary-glow)', borderColor: 'rgba(37, 99, 235, 0.1)' }}>
-                <div style={{ padding: '10px', borderRadius: '50%', backgroundColor: '#fff', color: 'var(--primary)', boxShadow: 'var(--shadow-neon)' }}>
-                  <User size={20} />
-                </div>
-                <div>
-                  <h4 style={{ fontSize: '0.95rem' }}>Conversation with {selectedConversation.user?.username || selectedConversation.user?.email || 'User'}</h4>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Email: {selectedConversation.user?.email || 'User'} | Active: {selectedConversation.updatedAt ? new Date(selectedConversation.updatedAt).toLocaleString() : 'Recent'}</p>
-                </div>
-              </div>
-
-              {/* Audit Transcript Message Feed */}
+              {/* Session Chat Feed */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '12px 0' }}>
-                {selectedConversation.messages.map((msg) => (
-                  <div key={msg._id} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {selectedSession.messages.map((msg) => (
+                  <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     {/* User Query */}
                     <div style={{ alignSelf: 'flex-end', maxWidth: '80%' }}>
                       <div style={{
@@ -488,19 +526,17 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* AI Answer Card */}
+                    {/* Assistant Response Card */}
                     <div style={{ alignSelf: 'flex-start', maxWidth: '90%', display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-                      <div className="glass-card" style={{
-                        padding: '16px 20px',
-                        borderRadius: '16px 16px 16px 4px',
-                        fontSize: '0.92rem'
-                      }}>
+                      <div className="glass-card" style={{ padding: '16px 20px', borderRadius: '16px 16px 16px 4px', fontSize: '0.92rem' }}>
                         <ReactMarkdown>{msg.responseText}</ReactMarkdown>
                       </div>
 
-                      {/* RAG Diagnostics Footer */}
+                      {/* RAG Diagnostics Footer Bar */}
                       <div style={{ 
                         display: 'flex', 
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
                         flexWrap: 'wrap', 
                         gap: '12px', 
                         padding: '8px 12px', 
@@ -510,20 +546,25 @@ export default function AdminDashboard() {
                         backgroundColor: 'rgba(15, 23, 42, 0.01)',
                         color: 'var(--text-muted)'
                       }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Clock size={12} /> Latency: <strong>{msg.logs?.totalTimeMs || 'N/A'}ms</strong>
-                        </span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Cpu size={12} /> Tokens: <strong>{msg.logs?.promptTokens + msg.logs?.completionTokens || 'N/A'}</strong> (P:{msg.logs?.promptTokens} / C:{msg.logs?.completionTokens})
-                        </span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <AlertTriangle size={12} /> Intent: <strong style={{ textTransform: 'uppercase' }}>{msg.logs?.intent || 'KNOWLEDGE'}</strong>
-                        </span>
-                        {msg.sources && msg.sources.length > 0 && (
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <FileText size={12} /> Sources Cited: <strong>{msg.sources.length} document(s)</strong>
+                            <Clock size={12} /> Total Latency: <strong>{msg.totalTimeMs}ms</strong>
                           </span>
-                        )}
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <AlertTriangle size={12} /> Intent: <strong style={{ textTransform: 'uppercase', color: 'var(--secondary)' }}>{msg.intent}</strong>
+                          </span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <FileText size={12} /> Sources Cited: <strong>{msg.sources?.length || 0} document(s)</strong>
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={() => setSelectedInspectMsg(msg)}
+                          className="btn btn-secondary"
+                          style={{ padding: '4px 10px', fontSize: '0.75rem', gap: '4px' }}
+                        >
+                          <Cpu size={12} /> Inspect Pipeline
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -531,103 +572,9 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
-        </div>
-      ) : (
-        /* Pipeline Execution Logs Tab */
-        <div style={{ width: '100%' }}>
-          <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Cpu size={18} color="var(--primary)" /> Query Execution & Pipeline Latency Log
-              </h4>
-              <button onClick={fetchQueryLogs} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
-                Refresh Logs
-              </button>
-            </div>
-
-            {fetchingLogs ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
-                <div className="glow-spinner" />
-              </div>
-            ) : queryLogs.length === 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--text-dark)', padding: '40px' }}>
-                No pipeline execution logs recorded yet.
-              </p>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.875rem' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)' }}>
-                      <th style={{ padding: '12px 8px' }}>User</th>
-                      <th style={{ padding: '12px 8px' }}>Original Query</th>
-                      <th style={{ padding: '12px 8px' }}>Intent</th>
-                      <th style={{ padding: '12px 8px' }}>Total Latency</th>
-                      <th style={{ padding: '12px 8px' }}>Timestamp</th>
-                      <th style={{ padding: '12px 8px', textAlign: 'right' }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {queryLogs.map((log) => {
-                      const totalMs = log.totalTimeMs || 0;
-                      const badgeColor = totalMs < 300 ? 'var(--success)' : totalMs < 1000 ? 'var(--primary)' : 'var(--warning)';
-                      const badgeBg = totalMs < 300 ? 'rgba(22, 163, 74, 0.1)' : totalMs < 1000 ? 'rgba(37, 99, 235, 0.1)' : 'rgba(202, 138, 4, 0.1)';
-
-                      return (
-                        <tr key={log.id} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.03)' }}>
-                          <td style={{ padding: '12px 8px', fontWeight: 500 }}>
-                            <span style={{ display: 'block' }}>{log.user?.username || 'User'}</span>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{log.user?.email}</span>
-                          </td>
-                          <td style={{ padding: '12px 8px', maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {log.originalQuery}
-                          </td>
-                          <td style={{ padding: '12px 8px' }}>
-                            <span style={{
-                              padding: '2px 8px',
-                              borderRadius: '4px',
-                              backgroundColor: 'rgba(8, 145, 178, 0.1)',
-                              color: 'var(--secondary)',
-                              fontSize: '0.75rem',
-                              fontWeight: 600
-                            }}>
-                              {log.intent}
-                            </span>
-                          </td>
-                          <td style={{ padding: '12px 8px' }}>
-                            <span style={{
-                              padding: '2px 8px',
-                              borderRadius: '12px',
-                              backgroundColor: badgeBg,
-                              color: badgeColor,
-                              fontSize: '0.8rem',
-                              fontWeight: 600
-                            }}>
-                              {totalMs} ms
-                            </span>
-                          </td>
-                          <td style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                            {new Date(log.createdAt).toLocaleString()}
-                          </td>
-                          <td style={{ padding: '12px 8px', textAlign: 'right' }}>
-                            <button
-                              onClick={() => setSelectedQueryLog(log)}
-                              className="btn btn-secondary"
-                              style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                            >
-                              Inspect Pipeline
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
 
           {/* Inspect Pipeline Modal */}
-          {selectedQueryLog && (
+          {selectedInspectMsg && (
             <div style={{
               position: 'fixed',
               top: 0,
@@ -658,9 +605,9 @@ export default function AdminDashboard() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-glass)', paddingBottom: '16px' }}>
                   <div>
                     <h3 style={{ fontSize: '1.2rem', margin: 0 }}>Pipeline Execution Diagnostics</h3>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Query ID: {selectedQueryLog.id}</span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Query ID: {selectedInspectMsg.id}</span>
                   </div>
-                  <button onClick={() => setSelectedQueryLog(null)} className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.85rem' }}>
+                  <button onClick={() => setSelectedInspectMsg(null)} className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.85rem' }}>
                     ✕ Close
                   </button>
                 </div>
@@ -668,17 +615,17 @@ export default function AdminDashboard() {
                 {/* Latency Visualizer Bar */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'rgba(15, 23, 42, 0.02)', padding: '16px', borderRadius: '8px' }}>
                   <h4 style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Clock size={16} color="var(--primary)" /> End-to-End Latency Breakdown ({selectedQueryLog.totalTimeMs}ms)
+                    <Clock size={16} color="var(--primary)" /> End-to-End Latency Breakdown ({selectedInspectMsg.totalTimeMs}ms)
                   </h4>
                   
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {[
-                      { label: 'Embedding Generation', value: selectedQueryLog.embeddingTimeMs, color: 'var(--primary)' },
-                      { label: 'Parallel Candidate Retrieval (Dense + Sparse)', value: selectedQueryLog.retrievalTimeMs, color: 'var(--secondary)' },
-                      { label: 'Two-Stage Re-ranking', value: selectedQueryLog.rerankingTimeMs, color: 'var(--warning)' },
-                      { label: 'LLM Response Streaming', value: selectedQueryLog.llmTimeMs, color: 'var(--success)' },
+                      { label: 'Embedding Generation', value: selectedInspectMsg.embeddingTimeMs, color: 'var(--primary)' },
+                      { label: 'Parallel Candidate Retrieval (Dense + Sparse)', value: selectedInspectMsg.retrievalTimeMs, color: 'var(--secondary)' },
+                      { label: 'Two-Stage Re-ranking', value: selectedInspectMsg.rerankingTimeMs, color: 'var(--warning)' },
+                      { label: 'LLM Response Streaming', value: selectedInspectMsg.llmTimeMs, color: 'var(--success)' },
                     ].map((stg, i) => {
-                      const pct = selectedQueryLog.totalTimeMs > 0 ? (stg.value / selectedQueryLog.totalTimeMs) * 100 : 0;
+                      const pct = selectedInspectMsg.totalTimeMs > 0 ? (stg.value / selectedInspectMsg.totalTimeMs) * 100 : 0;
                       return (
                         <div key={i}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '2px' }}>
@@ -702,11 +649,11 @@ export default function AdminDashboard() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div style={{ padding: '12px', borderRadius: '6px', background: 'rgba(37, 99, 235, 0.05)', border: '1px solid rgba(37, 99, 235, 0.1)' }}>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Original User Query:</span>
-                      <strong style={{ fontSize: '0.875rem' }}>{selectedQueryLog.originalQuery}</strong>
+                      <strong style={{ fontSize: '0.875rem' }}>{selectedInspectMsg.originalQuery}</strong>
                     </div>
                     <div style={{ padding: '12px', borderRadius: '6px', background: 'rgba(8, 145, 178, 0.05)', border: '1px solid rgba(8, 145, 178, 0.1)' }}>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Rewritten Search Query:</span>
-                      <strong style={{ fontSize: '0.875rem' }}>{selectedQueryLog.rewrittenQuery}</strong>
+                      <strong style={{ fontSize: '0.875rem' }}>{selectedInspectMsg.rewrittenQuery}</strong>
                     </div>
                   </div>
                 </div>
@@ -714,13 +661,13 @@ export default function AdminDashboard() {
                 {/* Cited Sources & Chunks */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <h4 style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Layers size={16} color="var(--success)" /> Sources & Context Chunks Cited ({selectedQueryLog.sources?.length || 0})
+                    <Layers size={16} color="var(--success)" /> Sources & Context Chunks Cited ({selectedInspectMsg.sources?.length || 0})
                   </h4>
-                  {selectedQueryLog.sources?.length === 0 ? (
+                  {selectedInspectMsg.sources?.length === 0 ? (
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No document chunks cited (Fallback / General Knowledge mode used).</p>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '160px', overflowY: 'auto' }}>
-                      {selectedQueryLog.sources.map((src, idx) => (
+                      {selectedInspectMsg.sources.map((src, idx) => (
                         <div key={idx} style={{ padding: '8px 12px', borderRadius: '6px', background: 'rgba(15, 23, 42, 0.02)', border: '1px solid var(--border-glass)', fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>
                             <strong style={{ color: 'var(--primary)' }}>{src.filename || 'Document Chunk'}</strong>
@@ -741,7 +688,7 @@ export default function AdminDashboard() {
                     <MessageSquare size={16} color="var(--warning)" /> LLM Streamed Response
                   </h4>
                   <div style={{ padding: '16px', borderRadius: '8px', background: 'rgba(15, 23, 42, 0.02)', border: '1px solid var(--border-glass)', fontSize: '0.875rem', maxHeight: '200px', overflowY: 'auto' }}>
-                    <ReactMarkdown>{selectedQueryLog.responseText}</ReactMarkdown>
+                    <ReactMarkdown>{selectedInspectMsg.responseText}</ReactMarkdown>
                   </div>
                 </div>
               </div>
