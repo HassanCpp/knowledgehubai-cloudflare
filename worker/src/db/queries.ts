@@ -382,6 +382,51 @@ export async function getRecentChatHistory(
   return result.results.reverse();
 }
 
+export async function getAllChatHistoryForSession(
+  db: D1Database,
+  userId: string,
+  sessionId: string
+): Promise<{ original_query: string; response_text: string }[]> {
+  const result = await db
+    .prepare(
+      `SELECT original_query, response_text FROM chat_histories
+       WHERE user_id = ? AND session_id = ?
+       ORDER BY created_at ASC`
+    )
+    .bind(userId, sessionId)
+    .all<{ original_query: string; response_text: string }>();
+  return result.results;
+}
+
+// ─── Session Summaries ────────────────────────────────────────────────────────
+
+export async function getSessionSummary(
+  db: D1Database,
+  sessionId: string
+): Promise<{ summary_text: string; last_summarized_count: number } | null> {
+  return db
+    .prepare('SELECT summary_text, last_summarized_count FROM session_summaries WHERE session_id = ?')
+    .bind(sessionId)
+    .first<{ summary_text: string; last_summarized_count: number }>();
+}
+
+export async function upsertSessionSummary(
+  db: D1Database,
+  sessionId: string,
+  userId: string,
+  summaryText: string,
+  count: number
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO session_summaries (session_id, user_id, summary_text, last_summarized_count, updated_at)
+       VALUES (?, ?, ?, ?, datetime('now'))
+       ON CONFLICT(session_id) DO UPDATE SET summary_text = excluded.summary_text, last_summarized_count = excluded.last_summarized_count, updated_at = excluded.updated_at`
+    )
+    .bind(sessionId, userId, summaryText, count)
+    .run();
+}
+
 // ─── Logs ─────────────────────────────────────────────────────────────────────
 
 export async function insertQueryLog(

@@ -8,6 +8,7 @@ import { preprocessQuery } from './query-preprocessor.service';
 import { retrieveAndFuse } from '../retrievers/multi.retriever';
 import { rerank } from '../rankers/reranker';
 import { expandCandidates, buildContext, reflectOnContext } from './context.service';
+import { getOrUpdateSessionSummary } from './summary.service';
 import {
   getExactCache, setExactCache,
   getFAQCache,
@@ -104,12 +105,15 @@ async function runPipeline(
       return;
     }
 
-    // ── 5. Fetch chat history ─────────────────────────────────────────────────
+    // ── 5. Fetch chat history & session summary ────────────────────────────────
     const historyRows = await getRecentChatHistory(env.DB, userId, sessionId, 6);
     const history = historyRows.flatMap((row) => [
       { role: 'user' as const, content: row.original_query },
       { role: 'assistant' as const, content: row.response_text ?? '' },
     ]);
+
+    // Fetch long-term rolling summary for older exchanges (exchanges prior to last 6)
+    const sessionSummary = await getOrUpdateSessionSummary(env, userId, sessionId);
 
     // ── 6. Pre-process ────────────────────────────────────────────────────────
     const { normalizedQuery, intent, rewrittenQuery, expandedKeywords } =
@@ -159,12 +163,16 @@ async function runPipeline(
     // ── 12. Stream LLM Response ───────────────────────────────────────────────
     await sendSSE('metadata', { intent, sources });
 
+    const summaryPrefix = sessionSummary
+      ? `📌 Prior Conversation Context & User Background:\n"${sessionSummary}"\n\n`
+      : '';
+
     const systemPrompt = fallbackTriggered
       ? `You are an expert AI knowledge manager for KnowledgeHubAI.
-The user's question is not fully covered by the uploaded documents.
+${summaryPrefix}The user's question is not fully covered by the uploaded documents.
 Provide the best general answer using your pre-trained knowledge, and clearly state it's not from the knowledge base.`
       : `You are an expert AI assistant for KnowledgeHubAI.
-Answer using ONLY the verified document context below. Be professional and structured.
+${summaryPrefix}Answer using ONLY the verified document context below. Be professional and structured.
 
 Document Context:
 """
