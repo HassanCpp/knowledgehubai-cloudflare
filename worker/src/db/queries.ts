@@ -474,6 +474,62 @@ export async function insertFallbackLog(
     .run();
 }
 
+export async function insertIngestionLog(
+  db: D1Database,
+  data: {
+    documentId: string;
+    filename: string;
+    fileSizeBytes: number;
+    mimeType?: string;
+    status: 'processing' | 'success' | 'failed';
+    validationMode?: string;
+    documentType?: string;
+    totalTimeMs?: number;
+    nativeExtractMs?: number;
+    ocrMs?: number;
+    chunkCount?: number;
+    vectorCount?: number;
+    warnings?: string[];
+    errorMessage?: string | null;
+  }
+): Promise<string> {
+  const id = generateId();
+  await db
+    .prepare(
+      `INSERT INTO ingestion_logs
+       (id, document_id, filename, file_size_bytes, mime_type, status, validation_mode, document_type,
+        total_time_ms, native_extract_ms, ocr_ms, chunk_count, vector_count, warnings, error_message)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(
+      id,
+      data.documentId,
+      data.filename,
+      data.fileSizeBytes,
+      data.mimeType ?? null,
+      data.status,
+      data.validationMode ?? 'code',
+      data.documentType ?? null,
+      data.totalTimeMs ?? 0,
+      data.nativeExtractMs ?? 0,
+      data.ocrMs ?? 0,
+      data.chunkCount ?? 0,
+      data.vectorCount ?? 0,
+      JSON.stringify(data.warnings ?? []),
+      data.errorMessage ?? null
+    )
+    .run();
+  return id;
+}
+
+export async function listIngestionLogs(db: D1Database, limit: number = 50) {
+  const result = await db
+    .prepare('SELECT * FROM ingestion_logs ORDER BY created_at DESC LIMIT ?')
+    .bind(limit)
+    .all();
+  return result.results;
+}
+
 // ─── User Memory ──────────────────────────────────────────────────────────────
 
 export async function upsertUserMemory(

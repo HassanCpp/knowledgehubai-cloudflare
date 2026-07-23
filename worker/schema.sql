@@ -181,3 +181,24 @@ CREATE TABLE IF NOT EXISTS session_summaries (
   last_summarized_count INTEGER DEFAULT 0,
   updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- ─── 15. ingestion_logs ──────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ingestion_logs (
+  id                  TEXT PRIMARY KEY,
+  document_id         TEXT REFERENCES uploaded_documents(id) ON DELETE CASCADE,
+  filename            TEXT NOT NULL,
+  file_size_bytes     INTEGER DEFAULT 0,
+  mime_type           TEXT,
+  status              TEXT NOT NULL CHECK (status IN ('processing', 'success', 'failed')),
+  validation_mode     TEXT DEFAULT 'code',
+  document_type       TEXT,
+  total_time_ms       INTEGER DEFAULT 0,
+  native_extract_ms   INTEGER DEFAULT 0,
+  ocr_ms              INTEGER DEFAULT 0,
+  chunk_count         INTEGER DEFAULT 0,
+  vector_count        INTEGER DEFAULT 0,
+  warnings            TEXT DEFAULT '[]',
+  error_message       TEXT,
+  created_at          TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ingestion_logs_doc ON ingestion_logs(document_id);

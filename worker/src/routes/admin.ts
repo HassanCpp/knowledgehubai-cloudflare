@@ -4,6 +4,8 @@ import { adminOnly } from '../middleware/roles.middleware';
 import { getDashboardStats } from '../services/analytics.service';
 import type { Env, HonoVars } from '../types';
 
+import { listIngestionLogs } from '../db/queries';
+
 const admin = new Hono<{ Bindings: Env; Variables: HonoVars }>();
 
 admin.use('*', authMiddleware);
@@ -19,6 +21,12 @@ admin.get('/stats', async (c) => {
 admin.get('/analytics', async (c) => {
   const stats = await getDashboardStats(c.env);
   return c.json(stats);
+});
+
+// GET /api/admin/ingestion-logs — list document upload and indexing audit logs
+admin.get('/ingestion-logs', async (c) => {
+  const logs = await listIngestionLogs(c.env.DB, 100);
+  return c.json(logs);
 });
 
 // GET /api/admin/conversations — user-centric hierarchical audit data (User -> Sessions -> Messages & Logs)

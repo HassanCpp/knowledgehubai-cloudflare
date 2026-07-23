@@ -15,12 +15,16 @@ export default function AdminDashboard() {
   const [error, setError] = useState('');
   
   // Audit Explorer Tab States
-  const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'audit'
+  const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'audit' | 'ingestion'
   const [userAudits, setUserAudits] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedSession, setSelectedSession] = useState(null);
   const [selectedInspectMsg, setSelectedInspectMsg] = useState(null);
   const [fetchingAudits, setFetchingAudits] = useState(false);
+
+  // Ingestion Audit Logs State
+  const [ingestionLogs, setIngestionLogs] = useState([]);
+  const [fetchingIngestionLogs, setFetchingIngestionLogs] = useState(false);
 
   const fetchAnalytics = async () => {
     try {
@@ -46,6 +50,18 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchIngestionLogs = async () => {
+    setFetchingIngestionLogs(true);
+    try {
+      const data = await apiFetch('/admin/ingestion-logs');
+      setIngestionLogs(data);
+    } catch (err) {
+      console.error('Failed to load ingestion logs:', err.message);
+    } finally {
+      setFetchingIngestionLogs(false);
+    }
+  };
+
   useEffect(() => {
     fetchAnalytics();
     const interval = setInterval(fetchAnalytics, 60000);
@@ -55,6 +71,8 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeTab === 'audit') {
       fetchConversations();
+    } else if (activeTab === 'ingestion') {
+      fetchIngestionLogs();
     }
   }, [activeTab]);
 
@@ -81,11 +99,11 @@ export default function AdminDashboard() {
       {/* Header */}
       <div>
         <h2 style={{ fontSize: '2rem' }} className="gradient-text">Admin Observability Dashboard</h2>
-        <p style={{ color: 'var(--text-muted)' }}>Real-time statistics, vector ingestion diagnostics, and user session chat auditing</p>
+        <p style={{ color: 'var(--text-muted)' }}>Real-time statistics, document ingestion audits, and user session chat auditing</p>
       </div>
 
       {/* Primary Tab Selectors */}
-      <div style={{ display: 'flex', gap: '16px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px' }}>
+      <div style={{ display: 'flex', gap: '16px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '12px', flexWrap: 'wrap' }}>
         <button
           onClick={() => {
             setActiveTab('analytics');
@@ -101,6 +119,22 @@ export default function AdminDashboard() {
           }}
         >
           <BarChart3 size={16} /> Analytics Dashboard
+        </button>
+        <button
+          onClick={() => {
+            setActiveTab('ingestion');
+            setSelectedUser(null);
+            setSelectedSession(null);
+          }}
+          className="btn btn-secondary"
+          style={{
+            backgroundColor: activeTab === 'ingestion' ? 'var(--primary-glow)' : 'transparent',
+            borderColor: activeTab === 'ingestion' ? 'rgba(37, 99, 235, 0.15)' : 'transparent',
+            color: activeTab === 'ingestion' ? 'var(--primary)' : 'var(--text-muted)',
+            fontWeight: 600
+          }}
+        >
+          <FileText size={16} /> File Ingestion & Indexing Logs
         </button>
         <button
           onClick={() => {
@@ -334,7 +368,99 @@ export default function AdminDashboard() {
             </div>
           </div>
         </>
-      ) : (
+      ) : activeTab === 'ingestion' ? (
+        <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileText size={18} color="var(--primary)" /> Document Ingestion & Indexing Pipeline Audit Trail
+            </h4>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Showing {ingestionLogs.length} ingestion log records
+            </span>
+          </div>
+
+          {fetchingIngestionLogs ? (
+            <div style={{ padding: '40px', textAlign: 'center' }}>
+              <div className="glow-spinner" style={{ margin: '0 auto' }} />
+              <p style={{ marginTop: '12px', color: 'var(--text-muted)' }}>Loading ingestion audit trail...</p>
+            </div>
+          ) : ingestionLogs.length === 0 ? (
+            <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>No ingestion logs available yet.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-muted)' }}>
+                    <th style={{ padding: '12px 8px' }}>File / Document</th>
+                    <th style={{ padding: '12px 8px' }}>Status</th>
+                    <th style={{ padding: '12px 8px' }}>Validation Mode</th>
+                    <th style={{ padding: '12px 8px' }}>Type</th>
+                    <th style={{ padding: '12px 8px' }}>Size</th>
+                    <th style={{ padding: '12px 8px' }}>Native Extract</th>
+                    <th style={{ padding: '12px 8px' }}>Vision OCR</th>
+                    <th style={{ padding: '12px 8px' }}>Total Time</th>
+                    <th style={{ padding: '12px 8px' }}>Chunks / Vectors</th>
+                    <th style={{ padding: '12px 8px' }}>Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ingestionLogs.map((log) => (
+                    <tr key={log.id} style={{ borderBottom: '1px solid rgba(15, 23, 42, 0.02)' }}>
+                      <td style={{ padding: '12px 8px', fontWeight: 600 }}>
+                        {log.filename}
+                        {log.error_message && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--error)', marginTop: '2px' }}>
+                            ⚠️ {log.error_message}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px 8px' }}>
+                        <span style={{
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          backgroundColor: log.status === 'success' ? 'rgba(22, 163, 74, 0.1)' : 'rgba(220, 38, 38, 0.1)',
+                          color: log.status === 'success' ? 'var(--success)' : 'var(--error)',
+                        }}>
+                          {log.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 8px' }}>
+                        <span style={{ padding: '2px 6px', borderRadius: '4px', background: 'rgba(139, 92, 246, 0.1)', color: 'var(--primary)', fontSize: '0.75rem' }}>
+                          {log.validation_mode || 'code'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 8px', color: 'var(--text-muted)' }}>
+                        {log.document_type || 'standard'}
+                      </td>
+                      <td style={{ padding: '12px 8px' }}>
+                        {(log.file_size_bytes / 1024).toFixed(1)} KB
+                      </td>
+                      <td style={{ padding: '12px 8px', color: 'var(--secondary)', fontWeight: 500 }}>
+                        {log.native_extract_ms}ms
+                      </td>
+                      <td style={{ padding: '12px 8px', color: 'var(--warning)', fontWeight: 500 }}>
+                        {log.ocr_ms}ms
+                      </td>
+                      <td style={{ padding: '12px 8px', fontWeight: 600 }}>
+                        {log.total_time_ms}ms
+                      </td>
+                      <td style={{ padding: '12px 8px' }}>
+                        {log.chunk_count} chunks / {log.vector_count} vectors
+                      </td>
+                      <td style={{ padding: '12px 8px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                        {new Date(log.created_at).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )
+ : (
         /* Hierarchical User & Session Audit Explorer */
         <div style={{ width: '100%' }}>
           {/* Breadcrumb Navigation Header */}

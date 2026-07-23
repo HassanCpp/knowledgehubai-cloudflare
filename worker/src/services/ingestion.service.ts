@@ -15,6 +15,7 @@ import {
   insertChunksBatch,
   updateChunkVectorizeId,
   findDocumentByFilename,
+  insertIngestionLog,
 } from '../db/queries';
 import { deleteDocumentFromIndexes } from './indexing.service';
 import type { Env } from '../types';
@@ -51,9 +52,11 @@ export async function ingestDocument(env: Env, input: IngestInput): Promise<{ do
     error_message: null,
   });
 
+  const startTime = Date.now();
+
   try {
     // 3. Process document via knowledgehub-document-engine
-    const { text } = await processDocument(
+    const { text, structuredDoc } = await processDocument(
       input.fileBuffer,
       input.filename,
       input.mimeType,
@@ -66,6 +69,17 @@ export async function ingestDocument(env: Env, input: IngestInput): Promise<{ do
     const existingHash = await findHashRecord(env.DB, contentHash);
     if (existingHash) {
       await updateDocumentStatus(env.DB, docId, 'failed', 0, 'Duplicate document — identical content already indexed.');
+      await insertIngestionLog(env.DB, {
+        documentId: docId,
+        filename: input.filename,
+        fileSizeBytes: input.fileBuffer.byteLength,
+        mimeType: input.mimeType,
+        status: 'failed',
+        validationMode: input.validationMode ?? 'code',
+        documentType: structuredDoc.documentType,
+        totalTimeMs: Date.now() - startTime,
+        errorMessage: 'Duplicate document — identical content already indexed.',
+      });
       return { documentId: docId, chunkCount: 0 };
     }
     await insertHash(env.DB, contentHash, docId);
@@ -122,10 +136,39 @@ export async function ingestDocument(env: Env, input: IngestInput): Promise<{ do
 
     const smallChunks = smallChunksList.length;
     await updateDocumentStatus(env.DB, docId, 'ready', smallChunks);
+
+    // Log full successful ingestion pipeline run
+    await insertIngestionLog(env.DB, {
+      documentId: docId,
+      filename: input.filename,
+      fileSizeBytes: input.fileBuffer.byteLength,
+      mimeType: input.mimeType,
+      status: 'success',
+      validationMode: input.validationMode ?? 'code',
+      documentType: structuredDoc.documentType,
+      totalTimeMs: Date.now() - startTime,
+      nativeExtractMs: structuredDoc.processingTime.nativeExtractMs,
+      ocrMs: structuredDoc.processingTime.ocrMs,
+      chunkCount: chunks.length,
+      vectorCount: smallChunks,
+      warnings: structuredDoc.warnings,
+    });
+
     return { documentId: docId, chunkCount: smallChunks };
 
   } catch (err) {
-    await updateDocumentStatus(env.DB, docId, 'failed', 0, (err as Error).message);
+    const errorMsg = (err as Error).message;
+    await updateDocumentStatus(env.DB, docId, 'failed', 0, errorMsg);
+    await insertIngestionLog(env.DB, {
+      documentId: docId,
+      filename: input.filename,
+      fileSizeBytes: input.fileBuffer.byteLength,
+      mimeType: input.mimeType,
+      status: 'failed',
+      validationMode: input.validationMode ?? 'code',
+      totalTimeMs: Date.now() - startTime,
+      errorMessage: errorMsg,
+    });
     throw err;
   }
 }
