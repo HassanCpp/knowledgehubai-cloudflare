@@ -25,7 +25,7 @@ export interface IngestInput {
   filename: string;
   mimeType: string;
   originalName?: string;
-  validationMode?: 'code' | 'ai';
+  isScanned?: boolean;
 }
 
 export async function ingestDocument(env: Env, input: IngestInput): Promise<{ documentId: string; chunkCount: number }> {
@@ -55,14 +55,15 @@ export async function ingestDocument(env: Env, input: IngestInput): Promise<{ do
   const startTime = Date.now();
 
   try {
-    // 3. Process document via knowledgehub-document-engine
-    const { text, structuredDoc } = await processDocument(
+    // 3. Parse document using original WASM processors
+    const parseStart = Date.now();
+    const { text } = await processDocument(
       input.fileBuffer,
       input.filename,
       input.mimeType,
-      env.OPENAI_API_KEY,
-      input.validationMode ?? 'code'
+      env.OPENAI_API_KEY
     );
+    const parseTimeMs = Date.now() - parseStart;
 
     // 4. Hash check for deduplication
     const contentHash = await sha256Hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))));
@@ -75,8 +76,8 @@ export async function ingestDocument(env: Env, input: IngestInput): Promise<{ do
         fileSizeBytes: input.fileBuffer.byteLength,
         mimeType: input.mimeType,
         status: 'failed',
-        validationMode: input.validationMode ?? 'code',
-        documentType: structuredDoc.documentType,
+        validationMode: input.isScanned ? 'scanned_ocr' : 'wasm_native',
+        documentType: input.filename.split('.').pop() || 'file',
         totalTimeMs: Date.now() - startTime,
         errorMessage: 'Duplicate document — identical content already indexed.',
       });
@@ -144,14 +145,14 @@ export async function ingestDocument(env: Env, input: IngestInput): Promise<{ do
       fileSizeBytes: input.fileBuffer.byteLength,
       mimeType: input.mimeType,
       status: 'success',
-      validationMode: input.validationMode ?? 'code',
-      documentType: structuredDoc.documentType,
+      validationMode: input.isScanned ? 'scanned_ocr' : 'wasm_native',
+      documentType: input.filename.split('.').pop() || 'file',
       totalTimeMs: Date.now() - startTime,
-      nativeExtractMs: structuredDoc.processingTime.nativeExtractMs,
-      ocrMs: structuredDoc.processingTime.ocrMs,
+      nativeExtractMs: parseTimeMs,
+      ocrMs: input.isScanned ? parseTimeMs : 0,
       chunkCount: chunks.length,
       vectorCount: smallChunks,
-      warnings: structuredDoc.warnings,
+      warnings: [],
     });
 
     return { documentId: docId, chunkCount: smallChunks };
@@ -165,7 +166,7 @@ export async function ingestDocument(env: Env, input: IngestInput): Promise<{ do
       fileSizeBytes: input.fileBuffer.byteLength,
       mimeType: input.mimeType,
       status: 'failed',
-      validationMode: input.validationMode ?? 'code',
+      validationMode: input.isScanned ? 'scanned_ocr' : 'wasm_native',
       totalTimeMs: Date.now() - startTime,
       errorMessage: errorMsg,
     });

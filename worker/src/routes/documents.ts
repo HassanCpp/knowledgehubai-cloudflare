@@ -20,7 +20,7 @@ documents.get('/', async (c) => {
 documents.post('/upload', async (c) => {
   const formData = await c.req.formData();
   const file = formData.get('file') as File | null;
-  const validationMode = (formData.get('validationMode') as 'code' | 'ai') || 'code';
+  const isScanned = formData.get('isScanned') === 'true';
 
   if (!file) return c.json({ error: 'No file provided' }, 400);
 
@@ -35,7 +35,7 @@ documents.post('/upload', async (c) => {
     filename: file.name,
     mimeType: file.type || 'application/octet-stream',
     originalName: file.name,
-    validationMode,
+    isScanned,
   });
 
   return c.json(result, 201);

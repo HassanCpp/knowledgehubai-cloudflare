@@ -87,12 +87,7 @@ export async function buildChunkTree(
   const classification = await classifyDocument(text, apiKey);
   const allChunks: ChunkNode[] = [];
 
-  let largeChunks = splitIntoLargeChunks(text);
-
-  // Safety cap for mega-documents (>100 pages): limit to top 150 large chunks
-  if (largeChunks.length > 150) {
-    largeChunks = largeChunks.slice(0, 150);
-  }
+  const largeChunks = splitIntoLargeChunks(text);
 
   for (const largeText of largeChunks) {
     const largeId = generateId();
