@@ -36,16 +36,10 @@ export async function parsePDFDocument(
     // If native text is empty or sparse (<50 chars across entire PDF), classify as Scanned PDF
     if (totalCharCount < 50) {
       documentType = 'pdf_scanned';
-      const ocrStart = Date.now();
-
-      // Dispatch full page buffer to Vision OCR
-      const ocrResult = await performVisionOCR(buffer, 'application/pdf', options.openAIApiKey, options.ocrDetail);
-      ocrMs = Date.now() - ocrStart;
-
-      fullText = ocrResult;
+      fullText = 'Scanned PDF document detected. Text extraction requires raster image rendering.';
       pages.push({
         pageNumber: 1,
-        text: ocrResult,
+        text: fullText,
         headings: [],
         tables: [],
         figures: [],

@@ -11,8 +11,8 @@ export async function performAIValidation(
   try {
     const client = new OpenAI({ apiKey });
 
-    // Truncate sample context for audit verification
-    const sampleText = doc.text.slice(0, 4000);
+    // Truncate sample context to 1500 chars to ensure ultra-fast AI audit execution
+    const sampleText = doc.text.slice(0, 1500);
 
     const response = await client.chat.completions.create({
       model: 'gpt-4o-mini',

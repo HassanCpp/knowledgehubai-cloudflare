@@ -5,6 +5,10 @@ import type { ExtractedCodeBlock } from '../types';
 export function extractCodeAndMathBlocks(
   text: string
 ): { cleanedText: string; codeBlocks: ExtractedCodeBlock[] } {
+  if (!text || !text.includes('```')) {
+    return { cleanedText: text, codeBlocks: [] };
+  }
+
   const codeBlocks: ExtractedCodeBlock[] = [];
   let blockCounter = 1;
 
