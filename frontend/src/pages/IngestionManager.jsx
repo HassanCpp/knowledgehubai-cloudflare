@@ -8,7 +8,7 @@ export default function IngestionManager() {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [isScanned, setIsScanned] = useState(false);
+  const [validationMode, setValidationMode] = useState('code');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -54,7 +54,7 @@ export default function IngestionManager() {
     const uploadPromises = files.map(async (file) => {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('isScanned', isScanned);
+      formData.append('validationMode', validationMode);
 
       try {
         const response = await fetch(`${API_URL}/documents/upload`, {
@@ -149,20 +149,36 @@ export default function IngestionManager() {
         <div style={{ textAlign: 'center' }}>
           <h3>Drag & Drop or Choose Document</h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '4px' }}>
-            Supported formats: PDF, PPTX, DOCX, TXT, MD, CSV, XLSX, PNG, JPG (Max 20MB)
+            Supported formats: PDF, PPTX, DOCX, TXT, MD, CSV, XLSX, PNG, JPG, WEBP, TIFF, BMP (Max 5MB)
           </p>
         </div>
 
-        {/* OCR toggle checkbox */}
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
-          <input
-            type="checkbox"
-            checked={isScanned}
-            onChange={(e) => setIsScanned(e.target.checked)}
-            style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
-          />
-          Force Scanned PDF (Uses GPT-4o Vision OCR)
-        </label>
+        {/* Validation Mode selector radio buttons */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(255, 255, 255, 0.03)', padding: '16px 24px', borderRadius: '12px', width: '100%', maxWidth: '500px' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>Validation Mode</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+            <input
+              type="radio"
+              name="validationMode"
+              value="code"
+              checked={validationMode === 'code'}
+              onChange={() => setValidationMode('code')}
+              style={{ accentColor: 'var(--primary)' }}
+            />
+            Code Validation Only <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>(Fast, free structural checks)</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+            <input
+              type="radio"
+              name="validationMode"
+              value="ai"
+              checked={validationMode === 'ai'}
+              onChange={() => setValidationMode('ai')}
+              style={{ accentColor: 'var(--primary)' }}
+            />
+            AI Validation <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>(Code Validation + LLM verification)</span>
+          </label>
+        </div>
 
         <label className="btn btn-primary" style={{ position: 'relative', overflow: 'hidden', cursor: 'pointer' }}>
           {uploading ? (

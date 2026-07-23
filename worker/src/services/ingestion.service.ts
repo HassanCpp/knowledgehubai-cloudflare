@@ -24,6 +24,7 @@ export interface IngestInput {
   filename: string;
   mimeType: string;
   originalName?: string;
+  validationMode?: 'code' | 'ai';
 }
 
 export async function ingestDocument(env: Env, input: IngestInput): Promise<{ documentId: string; chunkCount: number }> {
@@ -51,8 +52,14 @@ export async function ingestDocument(env: Env, input: IngestInput): Promise<{ do
   });
 
   try {
-    // 3. Parse the document with WASM processors
-    const { text } = await processDocument(input.fileBuffer, input.filename, input.mimeType, env.OPENAI_API_KEY);
+    // 3. Process document via knowledgehub-document-engine
+    const { text } = await processDocument(
+      input.fileBuffer,
+      input.filename,
+      input.mimeType,
+      env.OPENAI_API_KEY,
+      input.validationMode ?? 'code'
+    );
 
     // 4. Hash check for deduplication
     const contentHash = await sha256Hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))));
