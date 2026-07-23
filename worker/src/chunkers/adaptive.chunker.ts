@@ -64,17 +64,17 @@ function splitIntoMediumChunks(text: string): string[] {
 
 // ─── Step 4: Split a medium chunk into small chunks ──────────────────────────
 
-function splitIntoSmallChunks(text: string, classification: ChunkClassification): string[] {
+function splitIntoSmallChunks(text: string, classification: ChunkClassification, smallTokens: number = SMALL_TOKENS): string[] {
   if (classification === 'FAQ') {
     // Split on Q: / A: patterns
     const pairs = text.split(/(?=\bQ:|Question:)/i).filter(Boolean);
-    return pairs.length > 1 ? pairs : splitByTokens(text, SMALL_TOKENS);
+    return pairs.length > 1 ? pairs : splitByTokens(text, smallTokens);
   }
   if (classification === 'Table') {
     // Split on row boundaries (sentence per row)
     return text.split(/\n/).filter((l) => l.trim().length > 20);
   }
-  return splitByTokens(text, SMALL_TOKENS);
+  return splitByTokens(text, smallTokens);
 }
 
 // ─── Main: build full tree ────────────────────────────────────────────────────
@@ -88,6 +88,7 @@ export async function buildChunkTree(
   const allChunks: ChunkNode[] = [];
 
   const largeChunks = splitIntoLargeChunks(text);
+  const smallTokens = text.length > 50000 ? 350 : SMALL_TOKENS;
 
   for (const largeText of largeChunks) {
     const largeId = generateId();
@@ -112,7 +113,7 @@ export async function buildChunkTree(
         tokenCount: estimateTokens(medText),
       });
 
-      const smallChunks = splitIntoSmallChunks(medText, classification);
+      const smallChunks = splitIntoSmallChunks(medText, classification, smallTokens);
       for (const smallText of smallChunks) {
         if (smallText.trim().length < 20) continue;
         allChunks.push({

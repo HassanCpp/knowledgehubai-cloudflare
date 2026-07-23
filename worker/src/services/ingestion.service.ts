@@ -97,7 +97,7 @@ export async function ingestDocument(env: Env, input: IngestInput): Promise<{ do
       classification: chunk.classification,
       content: chunk.content,
       token_count: chunk.tokenCount,
-      vectorize_id: null,
+      vectorize_id: chunk.chunkType === 'small' ? chunk.id : null,
     }));
     await insertChunksBatch(env.DB, chunksToInsert);
 
@@ -127,11 +127,6 @@ export async function ingestDocument(env: Env, input: IngestInput): Promise<{ do
       for (let i = 0; i < vectorsToInsert.length; i += VECTOR_BATCH_SIZE) {
         const batch = vectorsToInsert.slice(i, i + VECTOR_BATCH_SIZE);
         await env.VECTORIZE_DOCS.insert(batch);
-      }
-
-      // Update D1 records with vectorize_ids
-      for (const chunk of smallChunksList) {
-        await updateChunkVectorizeId(env.DB, chunk.id, chunk.id);
       }
     }
 
